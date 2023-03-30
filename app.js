@@ -3,7 +3,7 @@ const path = require("path");
 const bcrypt = require("bcrypt");
 const db = require("./database");
 const jwt = require("jsonwebtoken");
-//require("dotenv").config();
+require("dotenv").config();
 
 const app = express();
 app.use(express.json());
@@ -13,6 +13,14 @@ app.set("view engine", "ejs");
 const PORT = 3000;
 const currentTaken = "";
 const currentPassword = "";
+
+const userFromToken = async (token) => {
+  token = req.cookies.jwt;
+  const decryptedToken = jwt.verify(token, process.env.TOKEN);
+  const user = await db.getUser(decryptedToken.user);
+  return user;
+};
+const authenticateToken = (req, res, nex) => {};
 
 app.get("/", (req, res) => {
   res.render("identify.ejs");
@@ -30,36 +38,32 @@ app.get("/student2", (req, res) => {
 app.get("/teacher", (req, res) => {
   res.render("teacher.ejs");
 });
-
-app.post("/identify", (req, res) => {
-  const userPass = req.body.password;
-  const token = jwt.sign(userPass, process.env.token);
-  console.log("token", token);
-  /*  currentPassword = userPass;
-  res.redirect("start.ejs"); */
+app.get("/start", (req, res) => {
+  res.render("start.ejs");
 });
 
-app.post("/", async (req, res) => {
+app.post("/identify", async (req, res) => {
   const { username, password } = req.body;
-  try {
-    if (req.body !== "") {
-      //encrypt the password
-      const success = await db.getUser(username);
-      if (success) {
-        //if user is found
-        if (await bcrypt.compare(password, success.password)) {
-          console.log("true");
-          res.render("home.ejs");
-          var token = jwt.sign("username", process.env.token);
-          console.log(token);
-        } else {
-          console.log("false");
-          res.render("wrongPass.ejs");
-        }
-      }
-    }
-  } catch (error) {
-    res.render("error.ejs");
+  //encrypt the password
+  const user = await db.getUser(username);
+  //console.log("username", user.password);
+
+  //if user is found
+  if (await bcrypt.compare(password, user.password)) {
+    console.log("true");
+    const cookieOptions = {
+      httpOnly: true, // Set cookie to httpOnly it can only be accessed by the server and not by client-side scripts.
+      maxAge: 86400000, // Set cookie to expire after 1 day (in milliseconds)
+    };
+    const token = jwt.sign(user, process.env.TOKEN_KEY);
+    console.log("TOKEN", token);
+    res.cookie("jwt", token, cookieOptions);
+    res.status(200);
+    res.redirect("/start");
+  } else {
+    const mg = `incorrect username  or  password`;
+    console.log("false");
+    res.status(401).render("fail.ejs", mg);
   }
 });
 
@@ -84,7 +88,7 @@ app.post("/register", async (req, res) => {
 
 app.get("/admin", async (req, res) => {
   const users = await db.getUsers();
-  console.log("users", users);
+
   res.render("admin.ejs", { users });
 });
 

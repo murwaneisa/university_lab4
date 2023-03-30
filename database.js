@@ -22,9 +22,9 @@ const getUsers = async (username) => {
 };
 
 const getUser = async (username) => {
-  const queryBook = "SELECT * FROM USERS WHERE username LIKE ?";
+  const queryBook = "SELECT * FROM USERS WHERE name LIKE ?";
   return new Promise((resolve, reject) => {
-    db.each(queryBook, [username], (err, row) => {
+    db.get(queryBook, [username], (err, row) => {
       if (err) reject();
       else resolve(row);
     });
