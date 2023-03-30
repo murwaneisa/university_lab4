@@ -3,9 +3,11 @@ const path = require("path");
 const bcrypt = require("bcrypt");
 const db = require("./database");
 const jwt = require("jsonwebtoken");
+const cookieParser = require("cookie-parser");
 require("dotenv").config();
 
 const app = express();
+app.use(cookieParser());
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 app.set("view engine", "ejs");
@@ -14,32 +16,88 @@ const PORT = 3000;
 const currentTaken = "";
 const currentPassword = "";
 
-const userFromToken = async (token) => {
-  token = req.cookies.jwt;
-  const decryptedToken = jwt.verify(token, process.env.TOKEN);
-  const user = await db.getUser(decryptedToken.user);
+const authenticateToken = (req, res, next) => {
+  const token = req.cookies.jwt;
+  if (!token) {
+    return res.redirect("/identify");
+  }
+  try {
+    jwt.verify(token, process.env.TOKEN_KEY);
+    next();
+  } catch (error) {
+    res.status(403).redirect("/identify");
+  }
+};
+
+const getUserFromToken = async (req) => {
+  const token = req.cookies.jwt;
+  console.log("token", token);
+  const decToken = jwt.verify(token, process.env.TOKEN_KEY);
+  const user = await db.getUser(decToken.name);
+  console.log("user", user);
   return user;
 };
-const authenticateToken = (req, res, nex) => {};
 
-app.get("/", (req, res) => {
+const authRole = (role) => {
+  return async (req, res, next) => {
+    try {
+      const user = await getUserFromToken(req);
+      if (role.includes(user.role)) {
+        next();
+      } else {
+        res.sendStatus(401);
+      }
+    } catch (error) {
+      console.log("error", error);
+    }
+  };
+};
+const roles = ["student", "teacher", "admin"];
+
+app.get("/", authenticateToken, authRole(roles), (req, res) => {
   res.render("identify.ejs");
 });
 
-app.get("/identify", (req, res) => {
+app.get("/identify", authenticateToken, authRole(roles), (req, res) => {
   res.render("identify.ejs");
 });
-app.get("/student1", (req, res) => {
+app.get("/student1", authenticateToken, authRole(roles), (req, res) => {
   res.render("student1.ejs");
 });
-app.get("/student2", (req, res) => {
+app.get("/student2", authenticateToken, authRole(roles), (req, res) => {
   res.render("student2.ejs");
 });
-app.get("/teacher", (req, res) => {
+app.get("/teacher", authenticateToken, authRole(roles), (req, res) => {
   res.render("teacher.ejs");
 });
-app.get("/start", (req, res) => {
+app.get("/start", authenticateToken, authRole(roles), (req, res) => {
   res.render("start.ejs");
+});
+
+app.get("/admin", authenticateToken, authRole("admin"), async (req, res) => {
+  const users = await db.getUsers();
+  res.render("admin.ejs", { users });
+});
+
+app.get("/admin", authenticateToken, authRole("admin"), async (req, res) => {
+  const users = await db.getUsers();
+  res.render("admin.ejs", { users });
+});
+
+app.get("/users/:userId", authenticateToken, async (req, res) => {
+  const cookies_token = req.cookies.jwt;
+  const decToken = jwt.verify(cookies_token, process.env.TOKEN_KEY);
+  const user = await db.getUser(decToken.name);
+  console.log("user dynamic", req.params.userId);
+
+  if (req.params.userId !== decToken.name) {
+    return res.sendStatus(401);
+  }
+  if (user.role == "student" && user.name == "student1") {
+    res.render("student1.ejs");
+  } else if (user.role == "student" && user.name !== "student1") {
+    res.render("student2.ejs", { user: user });
+  }
 });
 
 app.post("/identify", async (req, res) => {
@@ -59,11 +117,12 @@ app.post("/identify", async (req, res) => {
     console.log("TOKEN", token);
     res.cookie("jwt", token, cookieOptions);
     res.status(200);
+    getUserFromToken(req);
     res.redirect("/start");
   } else {
     const mg = `incorrect username  or  password`;
     console.log("false");
-    res.status(401).render("fail.ejs", mg);
+    res.status(401).render("fail.ejs", { mg });
   }
 });
 
@@ -84,12 +143,6 @@ app.post("/register", async (req, res) => {
   } catch (error) {
     res.render("fail.ejs");
   }
-});
-
-app.get("/admin", async (req, res) => {
-  const users = await db.getUsers();
-
-  res.render("admin.ejs", { users });
 });
 
 app.listen(PORT, () => {
