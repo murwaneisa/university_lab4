@@ -13,8 +13,6 @@ app.use(express.urlencoded({ extended: false }));
 app.set("view engine", "ejs");
 
 const PORT = 3000;
-const currentTaken = "";
-const currentPassword = "";
 
 const authenticateToken = (req, res, next) => {
   const token = req.cookies.jwt;
@@ -34,7 +32,7 @@ const getUserFromToken = async (req) => {
   console.log("token", token);
   const decToken = jwt.verify(token, process.env.TOKEN_KEY);
   const user = await db.getUser(decToken.name);
-  console.log("user", user);
+  console.log("the user in userForm", user);
   return user;
 };
 
@@ -53,30 +51,32 @@ const authRole = (role) => {
   };
 };
 const roles = ["student", "teacher", "admin"];
+const teacherAdminRoles = ["teacher", "admin"];
+app.get("/", (req, res) => {
+  res.redirect("/identify");
+});
 
-app.get("/", authenticateToken, authRole(roles), (req, res) => {
+app.get("/identify", (req, res) => {
   res.render("identify.ejs");
 });
 
-app.get("/identify", authenticateToken, authRole(roles), (req, res) => {
-  res.render("identify.ejs");
-});
 app.get("/student1", authenticateToken, authRole(roles), (req, res) => {
   res.render("student1.ejs");
 });
 app.get("/student2", authenticateToken, authRole(roles), (req, res) => {
-  res.render("student2.ejs");
+  const name = { name: "Murwan" };
+  res.render("student2.ejs", { user: name });
 });
-app.get("/teacher", authenticateToken, authRole(roles), (req, res) => {
-  res.render("teacher.ejs");
-});
+app.get(
+  "/teacher",
+  authenticateToken,
+  authRole(teacherAdminRoles),
+  (req, res) => {
+    res.render("teacher.ejs");
+  }
+);
 app.get("/start", authenticateToken, authRole(roles), (req, res) => {
   res.render("start.ejs");
-});
-
-app.get("/admin", authenticateToken, authRole("admin"), async (req, res) => {
-  const users = await db.getUsers();
-  res.render("admin.ejs", { users });
 });
 
 app.get("/admin", authenticateToken, authRole("admin"), async (req, res) => {
@@ -104,7 +104,7 @@ app.post("/identify", async (req, res) => {
   const { username, password } = req.body;
   //encrypt the password
   const user = await db.getUser(username);
-  //console.log("username", user.password);
+  console.log("username", user.password);
 
   //if user is found
   if (await bcrypt.compare(password, user.password)) {
