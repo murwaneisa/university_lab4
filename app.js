@@ -23,7 +23,7 @@ const authenticateToken = (req, res, next) => {
     jwt.verify(token, process.env.TOKEN_KEY);
     next();
   } catch (error) {
-    res.status(403).redirect("/identify");
+    return res.status(403).redirect("/identify");
   }
 };
 
@@ -43,7 +43,7 @@ const authRole = (role) => {
       if (role.includes(user.role)) {
         next();
       } else {
-        res.sendStatus(401);
+        res.status(401).redirect("/identify");
       }
     } catch (error) {
       console.log("error", error);
